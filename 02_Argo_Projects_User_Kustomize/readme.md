@@ -1,3 +1,5 @@
+# Step 2. Project, User and Kustomize overlays
+
 1. Checking kubectl, kustomize, argo cli, az cli
 2. Creating structure for infra repository
 3. Connecting to our dev cluster
