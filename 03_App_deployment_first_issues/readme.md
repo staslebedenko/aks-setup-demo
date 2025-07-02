@@ -282,18 +282,16 @@ kubectl apply -n argocd -f argo-cd-apps/frontend/frontend-application.yaml
 ```
 
 Now we have a following status
-
-![image.png](attachment:5c5e1b34-97bc-46f6-b026-18b3db45bf08:image.png)
+![image](https://github.com/user-attachments/assets/b36a390e-28dd-410c-87cd-db1ef6651a7d)
 
 As you can see, deployment of common-resources app failed, but Argo showing it as healthy - why?
 
 - Argo CD's "Health" status tracks the health of Kubernetes resources that **already exist**.
 - If no Kubernetes resources are created yet (due to manifest-rendering errors), Argo CD has no resource statuses to report as unhealthy.
 - Manifest-rendering issues (like missing paths or repository errors) affect **Sync Status**, not the Health Status.
+![image](https://github.com/user-attachments/assets/c3def93c-bf87-4f4f-9322-8740c7226f1f)
 
-![image.png](attachment:c0966082-2440-44c5-a865-6de66b11790f:image.png)
-
-![image.png](attachment:8e28616c-b4bd-4de4-979a-74fcddd3763c:image.png)
+![image](https://github.com/user-attachments/assets/ae3a8333-e7aa-449a-afb8-ff5d7df10c24)
 
 But before fixing this issue, lets have a look at Frontend. With waves approach sync should not be started, or is it?
 
@@ -304,11 +302,11 @@ But before fixing this issue, lets have a look at Frontend. With waves approach 
 
 Now we know that path inside manifest is wrong, lets fix it in UI.
 
-Click DETAILS, MANIFEST, EDIT
+Click DETAILS
+![image](https://github.com/user-attachments/assets/6e795007-6af1-4715-9df6-281d4c223442)
 
-![image.png](attachment:6d56e2df-95fc-4521-a702-7bb4cc42f842:image.png)
-
-![image.png](attachment:15a635e7-3ba5-4065-ba00-6e0c95187e4e:image.png)
+MANIFEST, EDIT
+![image](https://github.com/user-attachments/assets/66382e8f-b019-4bc3-87ba-ca2e774952ba)
 
 And change  apps\common\base to  apps/common/base
 Click SAVE and click to EVENTS to see that Sync operation succeeded. 
@@ -339,9 +337,9 @@ spec:
       kind: "*"  
 ```
 
-Now we have a following
+Result of our changes below and s
+![image](https://github.com/user-attachments/assets/41e95ba0-52e0-4c28-99b7-df2bc53d9590)
 
-![image.png](attachment:66e31949-3c1e-4dbf-97f7-41ab2109fa64:image.png)
 
 If you will check with command below, you will see that new namespace is available
 
@@ -350,18 +348,15 @@ kubectl get namespaces
 ```
 
 But sync status on frontend will be in a failed state
+![image](https://github.com/user-attachments/assets/8fcf9cb7-45b7-45b2-9b18-4f38993fdbb5)
 
-![image.png](attachment:4c08327c-ddd9-4756-985f-b7300bd704e6:image.png)
+This is because default configuration setting for this app - Retry is disabled
+![image](https://github.com/user-attachments/assets/0f5db1d4-2889-4ad7-b816-2ea879104cdc)
 
-This is because default configuration setting for this app is Retry disabled
+We need to select SYNC and then click SYNCHRONIZE
+![image](https://github.com/user-attachments/assets/dd6d75bf-f3db-49e5-9d58-1622667337a2)
 
-![image.png](attachment:3657a034-616e-466b-8190-83e63367f7ab:image.png)
-
-We need to click SYNC and then SYNCHRONIZE
-
-![image.png](attachment:44c5ca0a-c2bd-426c-9828-cfe80ac589ea:image.png)
-
-Quick explanation of the UI
+Quick explanation of the UI controls
 
 - **PRUNE**: Delete Kubernetes resources not defined in Git manifests.
 - **DRY RUN**: Preview sync without applying changes.
@@ -378,8 +373,7 @@ Quick explanation of the UI
 - **PRUNE PROPAGATION POLICY**: Controls how dependent resources are deleted (foreground/background).
 
 And now everything is green 
-
-![image.png](attachment:cd16583a-09cf-4f97-b0ae-692d94942fdf:image.png)
+![image](https://github.com/user-attachments/assets/e95ba570-9e1d-49d0-a851-d771e8e10eb5)
 
 ## Exercises
 
@@ -405,23 +399,20 @@ Test if result manifest change to the new namespace with
 kustomize build apps/frontend/envs/dev/
 ```
 
-One side note, that change of namespace only in deployment-patch.yaml will result in the following error
-
-![image.png](attachment:8c4799de-e38e-4903-9edf-134e3cf1500d:image.png)
+One a side note, that change of namespace only in deployment-patch.yaml will result in the following error
+![image](https://github.com/user-attachments/assets/77efd291-ec2d-4729-b452-612472276012)
 
 And commit back to our repository, to see that we now have a Sync failed
-
-![image.png](attachment:662fdb34-da89-4176-9c01-2b376f965df1:image.png)
+![image](https://github.com/user-attachments/assets/b86ddc1d-8c84-46ad-93ec-7ad015875d58)
 
 In theory, sync with enabled Auto-create namespace should solve the problem, but this will not help in our situation, even with more destructive sync options enabled
-
-![image.png](attachment:8b645494-3d6b-43e8-a92d-c1dfd9917d09:image.png)
+![image](https://github.com/user-attachments/assets/d69e7131-3f42-40c6-bd7e-058443dd3e68)
 
 Another good thing that Argo keeping our app alive
+![image](https://github.com/user-attachments/assets/7f7b4bfa-d963-49d3-86d5-45f9ccd41ccb)
 
-![image.png](attachment:c450d456-7de7-4804-a3e3-075924d03bc6:image.png)
-
-![image.png](attachment:4d3ce91c-f6c0-44c5-9e61-a6e069d08b3a:image.png)
+The last attempt we will try is a combination of PRUNE, FORCE, REPLACE
+![image](https://github.com/user-attachments/assets/aee3e8fa-66ff-4014-a446-eba80d166434)
 
 Commit and run sync with auto namespace creation again
 
@@ -434,8 +425,7 @@ This is less fun
 We will reverting changes of devbcnnamespace and ensuring that frontend application is green
 
 Open ArgoCD UI, select Frontend, click DETAILS ⇒ SUMMARY ⇒ EDIT = SYNC POLICY and click on to the SELF HEAL - ENABLE. You will see button DISABLE after change. 
-
-![image.png](attachment:b5ab3be3-5883-4703-b3d5-0904c9288807:image.png)
+![image](https://github.com/user-attachments/assets/64a0f380-67e3-4bac-b187-fa78fa40b98e)
 
 Then we will delete our Frontend service with kubectl command
 ```yaml
@@ -443,33 +433,30 @@ kubectl -n devbcn-demo delete deployment frontend
 ```
 
 This will result in out of sync, and then auto repair will happen
-
-![image.png](attachment:51553e5b-278a-40d5-86a9-09867a22a470:image.png)
+![image](https://github.com/user-attachments/assets/f89173dd-59ea-4aa6-bccf-124baf0a3047)
 
 With the diff showing below
+![image](https://github.com/user-attachments/assets/8b2cd437-56db-4ecc-ad24-259d33e704fb)
 
-![image.png](attachment:88bc2577-4827-45e9-8afd-a3d767894ead:image.png)
+In a few minutes it would be fixed in an automated way.
 
-In a few minutes it would be fixed, default 
+### Summary
+A few lessons were learned now about Argo behavior and issue resolution.
 
-A few lessons learned now about Argo behavior and issue resolution.
+Lesson 1. Be consistent with structure, our allocation of base folder for deploying existing resource can be a bad idea :)
+Lesson 2. Complexity raises fast, be aware that we are working now with the only one environment and single cluster.
 
-Scenario with Waves  - backend app intoduction as wave 1 with broken manifest and wrong namespace, deletion of the frontend and adding again with wave 3, what is going to happen
+Other setups can include following combinations
+- 1 Argo, 1 cluster - environments by namespaces
+- 1 Argo + 1 cluster setup per environment x3
+- Argo per env, each env 2 clusters
+- etc
 
-admin/fakeadminpass 
-
-devbcn-user / password1234
-
-The next step is 
+Don't forget to kill all port forwarding processes after workshop 
 ```yaml
 taskkill /IM kubectl.exe /F
 ```
 
-Lesson 1. Be consistent with structure, our allocation of base folder for deploying existing resource is a bad idea :)
 
-Lesson 2. Complexity raises fast, be aware that we are working now still with one environment and single cluster.
 
-- One Argo, one cluster - environments by namespaces
-- One Argo, one cluster setup + 3 env clusters
-- Argo per env, each env 2 clusters
-- etc
+
