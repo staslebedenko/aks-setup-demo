@@ -11,7 +11,7 @@ spec:
   source:  
     repoURL: https://github.com/staslebedenko/dev-infrastructure.git  
     targetRevision: HEAD  
-    path: apps/frontend/envs/dev  
+    path: step-3/apps/frontend/envs/dev  
   destination:  
     server: https://kubernetes.default.svc  
     namespace: devbcn-demo  
