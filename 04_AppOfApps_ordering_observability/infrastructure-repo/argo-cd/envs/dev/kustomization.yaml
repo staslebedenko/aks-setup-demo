@@ -8,4 +8,5 @@ namespace: argocd
   
 patches:  
   - path: argocd-cm-patch.yaml  
-  - path: argocd-rbac-cm-patch.yaml  
+  - path: argocd-rbac-cm-patch.yaml
+  - path: argocd-audit-log-patch.yaml  
