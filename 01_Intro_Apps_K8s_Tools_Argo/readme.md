@@ -41,6 +41,7 @@ az aks get-credentials --resource-group devbcn-demo --name devbcn-cluster --admi
 kubectl config use-context devbcn-cluster
 kubectl get all
 ```
+* Please look at command line output for which name cluster is merged, you can use kubectl config get-contexts  to locate the correct context name
 
 The next step would be setup default instance of Argo CD from public manifest 
 ```yaml
@@ -52,29 +53,42 @@ kubectl get all -n argocd
 
 Next we need to output admin password for the instance we just deployed 
 
-For Powershell terminal (I'm using one in Visual Studio Code)
+PS(Powershell) terminal (I'm using one in Visual Studio Code)
 ```yaml
 $encodedPass = kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}"  
 [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedPass))  
 ```
 
-(Optional)Getting password in CMD terminal
+(Optional)CMD terminal
 ```yaml
 for /f %i in ('kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath^="{.data.password}"') do @powershell "[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(\"%i\"))"  
 ```
 
-Please record your password somewhere safe, it looks something like below :)
+(Optional)Bash terminal
+```yaml
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 --decode; echo  
+```
+
+Please record your password somewhere to use later, it looks something like below :)
 C6#453$#532432E
 
-Start background port forwarding and login to our Argo CD instance for CMD
+Start background port forwarding and login to our Argo CD instance
 ```yaml
 kubectl port-forward svc/argocd-server -n argocd 8080:443 &
 ```
+Navigate to https://localhost:8080/ and login with login admin and password from console output above.
 
-(Important)Don’t forget to kill background kubectl tasks :), works both for PS and CMD
+![image](https://github.com/user-attachments/assets/a1593750-6422-4a2d-9d22-fa498e4c3f4d)
+
+It is also time to login with Argo CD CLI, this will be needed at the next step, replace password with your console output earlier
+
 ```yaml
-taskkill /IM kubectl.exe /F
+argocd login localhost:8080 --username admin --password yourconsolepass  --insecure
+argocd app list  
 ```
+
+Step above might not work if your port forwarding is not active, if this is the case please restart it.
+
 
 Alternative PowerShell terminal command for port-forwarding
 ```yaml
@@ -101,64 +115,28 @@ Repeating kubectl cleanup command
 taskkill /IM kubectl.exe /F
 ```
 
+## Final notes
 
-## Application extras
-If you need to test local applications please use following code from applications folder
+We approaching the main part of the workshop, please create new public github repositories
+
 ```yaml
-docker-compose up --build
-docker-compose down
-docker-compose up --build
+infrastructure
+application-repo
 ```
 
-If you need to rebuild apps and you are using Docker, then adjust remote repository name below
-```yaml
-docker login
+This concludes initial setup, please refer to readme in application folder for more details about application containers.
 
-docker build -t stasiko/funneverends-frontend:latest -f frontend/Dockerfile ./frontend
-docker push stasiko/funneverends-frontend:latest
+Remainder, if you need to stop working with port forwarding - just kill all processes, we need this active for the next steps, so keep console alive :)
 
-docker build -t stasiko/funneverends-backend:latest -f backend/Dockerfile ./backend
-docker push stasiko/funneverends-backend:latest
-```
-
-Login to Azure AKS access token and switch context to the current cluster
-```yaml
-az login --use-device-code
-az aks get-credentials --resource-group devbcn-demo --name devbcn-cluster --admin
-kubectl config use-context devbcn-cluster
-```
-
-If you want to just deploye apps to empty kubernetes cluster, you can use following order of commands
-```yaml
-kubectl apply -f namespace.yaml
-kubectl apply -f backend-configmap.yaml
-kubectl apply -f backend-secret.yaml
-kubectl apply -f backend-deployment.yaml
-kubectl apply -f frontend-deployment.yaml
-kubectl apply -f redis-deployment.yaml
-```
-
-Check deployed services with following commands
-```yaml
-kubectl get configmaps,svc -n devbcn
-kubectl get configmaps -n guestbook
-kubectl get svc frontend 
-kubectl get svc backend
-```
-
-if you need to delete namespace after manual deployment and testing
-```yaml
-kubectl delete namespace devbcn
-```
-
-To access and check if applications working in the remote claster, please start port forwarding as background tasks
-```yaml
-kubectl port-forward svc/backend -n devbcn 5000:5000 &
-kubectl port-forward svc/frontend -n devbcn 8080:80 &
-kubectl port-forward svc/redis -n devbcn 6379:6379 &
-```
-
-And don’t forget to kill kubectl processes afterwards with
 ```yaml
 taskkill /IM kubectl.exe /F
+```
+
+Keep in mind that you can be connected to the wrong cluster/argo cd instance, if that would be the case double check active kubectl context, switch it to the correct one and logoff from ArgoCD
+
+```yaml
+kubectl config current-context
+kubectl config get-contexts
+kubectl config use-context <correct-context-name>  
+argocd logout localhost:8080
 ```
