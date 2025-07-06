@@ -11,22 +11,7 @@ So far we have setup only Argo and its configuration structure, while working fr
 
 ### Repository structure evolution
 
-We had a following folder structure in our infrastructure repository
-```yaml
-argo-cd/  
-├── base/  
-│   ├── install.yaml  
-│   └── kustomization.yaml
-└── envs/  
-    └── dev/  
-        ├── restrict-default-project.yaml  
-        ├── argocd-cm-patch.yaml  
-        ├── argocd-rbac-cm.yaml  
-        ├── project-devbcn-demo.yaml  
-        └── kustomization.yaml
-```
-
-Now it is evolving to the following structure. We are not touching best practices yet :)
+Now it is evolving to the following structure. 
 ```yaml
 infrastructure-repo/  
 ├── apps/                                 # Kubernetes application manifests  
@@ -68,24 +53,29 @@ infrastructure-repo/
         └── frontend-application.yaml    # manifest for frontend app  
 ```
 
-### Application manifests folder
+### Applications
+First we need to switch root in the command line from previous one
 
-Folder “Common” contains manifests for deployment of a namespace where shared Kubernetes resources will be deployed
-
-### Common folder with namespace manifest
-
-**namespace-devbcn.yaml**
 ```yaml
-# root/apps/common/base/namespace-devbcn.yaml 
+cd ..
+cd ..
+cd 03_App_deployment_first_issues/infrastructure-repo
+```
+
+### Common folder
+
+Base subfolder:
+```yaml
+# apps/common/base/namespace-devbcn.yaml 
 apiVersion: v1  
 kind: Namespace  
 metadata:  
-  name: devbcn
+  name: devbcn-demo
 ```
 
 **kustomization.yaml**
 ```yaml
-# root/apps/common/base/kustomization.yaml
+# apps/common/base/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1  
 kind: Kustomization  
   
@@ -98,15 +88,14 @@ Validate changes with command below, assuming that terminal is at root folder
 kustomize build apps/common/base/
 ```
 
-* We ignoring dev specific overlay and leaving it empty
+* We ignoring dev specific overlay and leaving it empty for now, you can do this as part of home work
 
 ### Frontend app folder
 
 Base subfolder:
 
-**deployment.yaml**
 ```yaml
-# root/apps/frontend/base/deployment.yaml
+# apps/frontend/base/deployment.yaml
 apiVersion: apps/v1  
 kind: Deployment  
 metadata:  
@@ -126,12 +115,11 @@ spec:
         - name: frontend  
           image: docker.io/stasiko/funneverends-frontend:latest  
           ports:  
-            - containerPort: 80  
+            - containerPort: 80   
 ```
 
-**service.yaml**
 ```yaml
-# root/apps/frontend/base/service.yaml
+# apps/frontend/base/service.yaml
 apiVersion: v1  
 kind: Service  
 metadata:  
@@ -146,9 +134,8 @@ spec:
       targetPort: 80  
 ```
 
-**kustomization.yaml**
 ```yaml
-# root/apps/frontend/base/kustomization.yaml
+# apps/frontend/base/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1  
 kind: Kustomization  
   
@@ -157,9 +144,9 @@ resources:
   - service.yaml  
 ```
 
-Dev overlays folder envs\dev
+### Dev overlays folder envs\dev
 
-**deployment-patch.yaml** with changed replicas count
+changed replicas count
 ```yaml
 # apps/frontend/envs/dev/deployment-patch.yaml
 apiVersion: apps/v1  
@@ -171,15 +158,16 @@ spec:
   replicas: 2  
 ```
 
-**kustomization.yaml**
 ```yaml
 # apps/frontend/envs/dev/kustomization.yaml 
 apiVersion: kustomize.config.k8s.io/v1beta1  
 kind: Kustomization  
-  
+
 resources:  
   - ../../base  
-  
+
+namespace: devbcn
+
 patches:  
 - path: deployment-patch.yaml 
 ```
@@ -189,7 +177,9 @@ Validate changes with
 kustomize build apps/frontend/envs/dev/
 ```
 
-As you know, kustomize is a part of kubectl, so command below will also work. We separating them for clear separation by workshop participants
+(Sidenote)As you know, kustomize is a part of kubectl, so command below will also work. 
+We separating them to make avoid mess
+
 ```yaml
 kubectl kustomize apps/frontend/envs/dev/
 ```
@@ -200,9 +190,7 @@ Argo CD Applications are special Kubernetes resources (called Custom Resources)
 
 There will be simpler structure here, because Argo recommends less usage of Kustomize, because things can be messier this way :)
 
-Lets navigate to: argo-cd-apps/common
-
-**common-app.yaml**
+Now we are creating files in argo-cd-apps/common
 ```yaml
 # argo-cd-apps/common/common-app.yaml 
 apiVersion: argoproj.io/v1alpha1  
@@ -215,21 +203,20 @@ metadata:
 spec:  
   project: common-resources  
   source:  
-    repoURL: https://github.com/staslebedenko/dev-infrastructure.git  # Change to your Repo URL  
+    repoURL: https://github.com/staslebedenko/infrastructure-repo.git  # Change to your Repo URL  
     targetRevision: HEAD  
-    path: apps\common\base                # path to app manifest  
+    path: step-3\apps\common\base                # path to app manifest  
   destination:  
     server: https://kubernetes.default.svc  
     namespace: default               # For namespaces use "default"
   syncPolicy:  
     automated:  
-      prune: false                   # the destination resource will not be deleted  
-      selfHeal: true  
+      prune: false                   # 
+      selfHeal: true   
 ```
 
 then argo-cd-apps/frontend
 
-**frontend-application.yaml**
 ```yaml
 # argo-cd-apps/frontend/frontend-application.yaml
 apiVersion: argoproj.io/v1alpha1  
@@ -244,14 +231,14 @@ spec:
   source:  
     repoURL: https://github.com/staslebedenko/dev-infrastructure.git  
     targetRevision: HEAD  
-    path: apps/frontend/envs/dev  
+    path: step-3/apps/frontend/envs/dev  
   destination:  
     server: https://kubernetes.default.svc  
-    namespace: devbcn  
+    namespace: devbcn-demo
   syncPolicy:  
     automated:  
       prune: true  
-      selfHeal: true  
+      selfHeal: true   
 ```
 
 Argo CD sync waves allow you to orchestrate the deployment order of Kubernetes resources by adding annotations ([argocd.argoproj.io/sync-wave](http://argocd.argoproj.io/sync-wave)) to your manifests. Resources with lower sync-wave numbers (e.g., "0") are synchronized first, and only after they are successfully deployed does Argo CD proceed to resources with higher wave numbers (e.g., "1", "2", etc.). This helps manage dependencies clearly, ensuring critical resources—such as namespaces, CRDs, or other prerequisites—are deployed successfully before the applications or services relying on them begin deployment, thus providing safer and more controlled rollouts.
@@ -267,10 +254,12 @@ Please do the switch context to your cluster, to avoid problems :)
 kubectl config use-context devbcn-cluster
 kubectl get ns
 ```
+You should have following namespace list as output
+![image](https://github.com/user-attachments/assets/f452d615-cbf5-40f8-ae6d-d2c4d5688058)
 
 Check if Argo is accessible via [localhost:8080](http://localhost:8080) - if not, restart port forwarding below
 ```yaml
-$job = Start-Job -ScriptBlock { kubectl port-forward svc/argocd-server -n argocd 8080:443 }
+kubectl port-forward svc/argocd-server -n argocd 8080:443 &
 ```
 
 Then proceed with manual deployment of namespace and frontend app from the root. 
@@ -281,53 +270,35 @@ kubectl apply -n argocd -f argo-cd-apps/common/common-app.yaml
 kubectl apply -n argocd -f argo-cd-apps/frontend/frontend-application.yaml
 ```
 
-Now we have a following status
-![image](https://github.com/user-attachments/assets/b36a390e-28dd-410c-87cd-db1ef6651a7d)
+Now we have a following status, or something like this :)
+![image](https://github.com/user-attachments/assets/faf739d2-83cb-45d5-9d90-6aadec0c3d28)
+
 
 As you can see, deployment of common-resources app failed, but Argo showing it as healthy - why?
 
 - Argo CD's "Health" status tracks the health of Kubernetes resources that **already exist**.
 - If no Kubernetes resources are created yet (due to manifest-rendering errors), Argo CD has no resource statuses to report as unhealthy.
 - Manifest-rendering issues (like missing paths or repository errors) affect **Sync Status**, not the Health Status.
-![image](https://github.com/user-attachments/assets/c3def93c-bf87-4f4f-9322-8740c7226f1f)
 
-![image](https://github.com/user-attachments/assets/ae3a8333-e7aa-449a-afb8-ff5d7df10c24)
+### Error 1
 
-But before fixing this issue, lets have a look at Frontend. With waves approach sync should not be started, or is it?
+Let’s start with the common-resources app. If we will try to open it - we will get informative error
+![image](https://github.com/user-attachments/assets/f6756e11-db40-4584-8e67-12da3e5f273d)
 
-- If Wave `0` manifests **fail to render** (due to incorrect paths or invalid manifests), Argo CD will NOT create those resources at all, and the sync will show a `ComparisonError`.
-- Because Wave `0` resources are never successfully synced (not created), Argo CD will **not proceed** to deploy Wave `1`.However, if Wave `0` has no resources at all (for example, due to a manifest rendering issue, Argo CD sees nothing to deploy), it may skip directly to Wave `1`. This can be confusing.
-- If Wave `0` is empty (no resources created at all due to manifest errors), Argo CD treat that wave as trivially complete and proceed to Wave `1`.
-- If Wave `0` has resources defined but fails due to **Kubernetes errors at apply-time** (e.g., validation errors, admission controllers, etc.), Argo CD stops and won't proceed to the next waves.
-
-Now we know that path inside manifest is wrong, lets fix it in UI.
-
-Click DETAILS
-![image](https://github.com/user-attachments/assets/6e795007-6af1-4715-9df6-281d4c223442)
-
-MANIFEST, EDIT
-![image](https://github.com/user-attachments/assets/66382e8f-b019-4bc3-87ba-ca2e774952ba)
-
-And change  apps\common\base to  apps/common/base
-Click SAVE and click to EVENTS to see that Sync operation succeeded. 
-
-! But that is not the end of this story, if you will check your github repository, it still contains manifest with error above, Argo CD don’t merge back changes done in the UI and it is a classic configuration drift after ClickOps activity. Next time you deploy or Argo sync this Common resources CRD manifest application will be broken again. Never ever do anything in the UI :).
-
-! Another bad thing that happen with this manifest is part below, argo project that was auto created from common-resources manifest. It was not configured with project manifest in argo-cd folder, please add it and apply to cluster like project-devbcn-demo.yaml, but make it available for every namespace and deploy with kubectl or kustomize
-
+And we cannot do anything from Argo CD UI, now is a good time to add new namespace to Argo CD
 ```yaml
-# argo-cd/envs/dev/project-devbcn-demo.yaml
+# argo-cd/envs/dev/project-common-resources.yaml
 apiVersion: argoproj.io/v1alpha1  
 kind: AppProject  
 metadata:  
-  name: devbcn-demo  
+  name: common-resources  
   namespace: argocd  
 spec:  
-  description: "Project for devbcn deployments"  
+  description: "Project for coomon deployments"  
   sourceRepos:  
     - "*" # Allow all repositories, or specify your Git repos explicitly  
   destinations:  
-    - namespace: devbcn-demo # Allow all namespaces, or restrict to specific namespaces if needed  'https://your.git.repo/applications.git'
+    - namespace: "*" # Allow all namespaces, or restrict to specific namespaces if needed  'https://your.git.repo/applications.git'
       server: "*"    # Allow all clusters, or restrict to specific clusters  
   clusterResourceWhitelist:  
     - group: "*"  
@@ -337,9 +308,88 @@ spec:
       kind: "*"  
 ```
 
-Result of our changes below and s
-![image](https://github.com/user-attachments/assets/41e95ba0-52e0-4c28-99b7-df2bc53d9590)
+And update kustomize to include this file
 
+```yaml
+# argo-cd/envs/dev/kustomization.yaml  
+resources:  
+  - ../../base  
+  - restrict-default-project.yaml
+  - project-devbcn-demo.yaml
+  - project-common-resources.yaml
+  
+namespace: argocd  
+  
+patches:  
+  - path: argocd-cm-patch.yaml  
+  - path: argocd-rbac-cm-patch.yaml 
+```
+
+Test it
+
+```yaml
+kustomize build argo-cd\envs\dev\
+```
+
+And apply Argo CD changes
+
+```markdown
+kustomize build argo-cd\envs\dev\ | kubectl apply -f -
+```
+
+Let’s check status in UI :)And update kustomize to include this file
+
+```yaml
+# argo-cd/envs/dev/kustomization.yaml  
+resources:  
+  - ../../base  
+  - restrict-default-project.yaml
+  - project-devbcn-demo.yaml
+  - project-common-resources.yaml
+  
+namespace: argocd  
+  
+patches:  
+  - path: argocd-cm-patch.yaml  
+  - path: argocd-rbac-cm-patch.yaml 
+```
+
+Test it
+
+```yaml
+kustomize build argo-cd\envs\dev\
+```
+
+And apply Argo CD changes
+
+```markdown
+kustomize build argo-cd\envs\dev\ | kubectl apply -f -
+```
+
+Let’s check status in UI
+![image](https://github.com/user-attachments/assets/f43987d2-3769-4537-b21c-ea9c91852c6b)
+
+### Error 2
+
+Let’s open common-resources app 
+*If you getting Origin not allowed error, you just need to re-start port forwarding and login again
+
+```yaml
+taskkill /IM kubectl.exe /F
+kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+```
+
+![image](https://github.com/user-attachments/assets/1fb932cd-83e2-4dfa-bb7f-5465e71313d4)
+
+![image](https://github.com/user-attachments/assets/9508d81e-6c86-463b-995c-761dc85e1a16)
+
+Now we know that path inside manifest is wrong, lets fix it in UI.
+Click DETAILS, MANIFEST, EDIT
+
+![image](https://github.com/user-attachments/assets/364a642b-2361-475e-8b02-200938526804)
+
+And change  step-3\apps\common\base to  step-3/apps/common/base
+Click SAVE and click to EVENTS to see that Sync operation succeeded. 
 
 If you will check with command below, you will see that new namespace is available
 
@@ -347,16 +397,52 @@ If you will check with command below, you will see that new namespace is availab
 kubectl get namespaces
 ```
 
-But sync status on frontend will be in a failed state
-![image](https://github.com/user-attachments/assets/8fcf9cb7-45b7-45b2-9b18-4f38993fdbb5)
+! But that is not the end of this story, if you will check your github repository, it still contains manifest with error above, Argo CD don’t merge back changes done in the UI and it is a classic configuration drift after ClickOps activity. Next time you deploy or Argo sync this Common resources CRD manifest application will be broken again. Never ever do anything in the UI :).
 
-This is because default configuration setting for this app - Retry is disabled
-![image](https://github.com/user-attachments/assets/0f5db1d4-2889-4ad7-b816-2ea879104cdc)
+### Error 3
 
-We need to select SYNC and then click SYNCHRONIZE
-![image](https://github.com/user-attachments/assets/dd6d75bf-f3db-49e5-9d58-1622667337a2)
+Lets have a look at Frontend. With waves approach sync should not be started, or is it?
 
-Quick explanation of the UI controls
+- If Wave `0` manifests **fail to render** (due to incorrect paths or invalid manifests), Argo CD will NOT create those resources at all, and the sync will show a `ComparisonError`.
+- Because Wave `0` resources are never successfully synced (not created), Argo CD will **not proceed** to deploy Wave `1`.However, if Wave `0` has no resources at all (for example, due to a manifest rendering issue, Argo CD sees nothing to deploy), it may skip directly to Wave `1`. This can be confusing.
+- If Wave `0` is empty (no resources created at all due to manifest errors), Argo CD treat that wave as trivially complete and proceed to Wave `1`.
+- If Wave `0` has resources defined but fails due to **Kubernetes errors at apply-time** (e.g., validation errors, admission controllers, etc.), Argo CD stops and won't proceed to the next waves.
+
+![image](https://github.com/user-attachments/assets/00ed35af-07f3-44f9-ae2f-295ff868a8d8)
+
+Sync executing, but nothing happening
+![image](https://github.com/user-attachments/assets/03b1755c-5003-4b59-aa09-984a79ee49b0)
+
+Let’s open service
+![image](https://github.com/user-attachments/assets/ba945ecf-a000-4fc6-a03d-87c4dab972a6)
+
+And then Diff
+![image](https://github.com/user-attachments/assets/5c6ec38f-45fb-4e7a-99f5-4f2ac42aa430)
+
+We can deduct from this, that there are namespace mismatch, but error will not really providing useful information, lets fix it in Kustomize file in infrastructure repo.
+
+Let’s fix namespace configuration in the dev overlay from devbcn to devbcn-demo, commit and push to repository
+
+```yaml
+# apps/frontend/envs/dev/kustomization.yaml 
+apiVersion: kustomize.config.k8s.io/v1beta1  
+kind: Kustomization  
+
+resources:  
+  - ../../base  
+
+namespace: devbcn-demo
+
+patches:  
+- path: deployment-patch.yaml 
+```
+
+We need to click SYNC and then SYNCHRONIZE
+![image](https://github.com/user-attachments/assets/a63596ee-7742-46e1-a736-51100fcfb903)
+
+![image.png](attachment:44c5ca0a-c2bd-426c-9828-cfe80ac589ea:image.png)
+
+Quick explanation of the UI
 
 - **PRUNE**: Delete Kubernetes resources not defined in Git manifests.
 - **DRY RUN**: Preview sync without applying changes.
@@ -372,14 +458,17 @@ Quick explanation of the UI controls
 - **RETRY**: Automatically retry sync if it fails initially.
 - **PRUNE PROPAGATION POLICY**: Controls how dependent resources are deleted (foreground/background).
 
-And now everything is green 
-![image](https://github.com/user-attachments/assets/e95ba570-9e1d-49d0-a851-d771e8e10eb5)
+And now everything is green
+![image](https://github.com/user-attachments/assets/88868220-3414-4c2d-a024-adceaff6dad9)
+
+(Optional) Synchronize options
 
 ## Exercises
 
-### Failing of Frontend app sync - sad story
+### Failing of Frontend app sync - reverse change of namespace
 
-Lets edit kustomize.yaml and add namespace row set to devbcn
+Lets edit kustomize.yaml and revert namespace row set to devbcn, we already had our app green
+
 ```yaml
 # apps/frontend/envs/dev/kustomization.yaml 
 apiVersion: kustomize.config.k8s.io/v1beta1  
@@ -395,67 +484,54 @@ patches:
 ```
 
 Test if result manifest change to the new namespace with
+
 ```yaml
 kustomize build apps/frontend/envs/dev/
 ```
-
-One a side note, that change of namespace only in deployment-patch.yaml will result in the following error
-![image](https://github.com/user-attachments/assets/77efd291-ec2d-4729-b452-612472276012)
-
 And commit back to our repository, to see that we now have a Sync failed
-![image](https://github.com/user-attachments/assets/b86ddc1d-8c84-46ad-93ec-7ad015875d58)
+![image](https://github.com/user-attachments/assets/e1aaa20b-f3ab-4593-a926-5ba2dfcacdbf)
 
 In theory, sync with enabled Auto-create namespace should solve the problem, but this will not help in our situation, even with more destructive sync options enabled
-![image](https://github.com/user-attachments/assets/d69e7131-3f42-40c6-bd7e-058443dd3e68)
+![image](https://github.com/user-attachments/assets/51492828-e59a-48b2-be6d-d6d35f1c7217)
 
 Another good thing that Argo keeping our app alive
-![image](https://github.com/user-attachments/assets/7f7b4bfa-d963-49d3-86d5-45f9ccd41ccb)
+![image](https://github.com/user-attachments/assets/e468efde-5bdf-452c-abcb-f816486ffb7a)
 
-The last attempt we will try is a combination of PRUNE, FORCE, REPLACE
-![image](https://github.com/user-attachments/assets/aee3e8fa-66ff-4014-a446-eba80d166434)
-
-Commit and run sync with auto namespace creation again
-
-This will going to fail because we will require PRUNE to delete service from old namespace
+Whatever we will try to change in the sync, it will not help :)
 
 ## Auto healing
 
-This is less fun
-
 We will reverting changes of devbcnnamespace and ensuring that frontend application is green
 
-Open ArgoCD UI, select Frontend, click DETAILS ⇒ SUMMARY ⇒ EDIT = SYNC POLICY and click on to the SELF HEAL - ENABLE. You will see button DISABLE after change. 
-![image](https://github.com/user-attachments/assets/64a0f380-67e3-4bac-b187-fa78fa40b98e)
+Open ArgoCD UI, select Frontend, click DETAILS ⇒ SUMMARY ⇒ EDIT = SYNC POLICY and click on to the SELF HEAL - ENABLE. You will see button DISABLE after change.
 
 Then we will delete our Frontend service with kubectl command
+
 ```yaml
 kubectl -n devbcn-demo delete deployment frontend
 ```
 
-This will result in out of sync, and then auto repair will happen
-![image](https://github.com/user-attachments/assets/f89173dd-59ea-4aa6-bccf-124baf0a3047)
+This will result in out of sync, and then auto repair will happen. You might not even catch that this happen in UI
+![image](https://github.com/user-attachments/assets/91520c74-7081-4b2e-ba0b-6b87e480634d)
 
-With the diff showing below
-![image](https://github.com/user-attachments/assets/8b2cd437-56db-4ecc-ad24-259d33e704fb)
+And after a minute or two this would be reflected as a log entry
 
-In a few minutes it would be fixed in an automated way.
+![image](https://github.com/user-attachments/assets/6a325cdc-c855-4c5d-a616-0bdf28f9bc2d)
+
+In a few minutes it would be fixed.
 
 ### Summary
-A few lessons were learned now about Argo behavior and issue resolution.
 
-Lesson 1. Be consistent with structure, our allocation of base folder for deploying existing resource can be a bad idea :)
-Lesson 2. Complexity raises fast, be aware that we are working now with the only one environment and single cluster.
+Please delete apps from ARGO UI before we proceed to the next step.
 
-Other setups can include following combinations
-- 1 Argo, 1 cluster - environments by namespaces
-- 1 Argo + 1 cluster setup per environment x3
+Lesson 1. Be consistent with structure, our allocation of base folder for deploying existing resource is a bad idea :)
+
+Lesson 2. Complexity raises fast, be aware that we are working now still with one environment and single cluster.
+
+- One Argo, one cluster - environments by namespaces
+- One Argo, one cluster setup + 3 env clusters
 - Argo per env, each env 2 clusters
 - etc
-
-Don't forget to kill all port forwarding processes after workshop 
-```yaml
-taskkill /IM kubectl.exe /F
-```
 
 
 
