@@ -9,7 +9,7 @@ metadata:
 spec:  
   project: common-resources  
   source:  
-    repoURL: https://github.com/staslebedenko/dev-infrastructure.git  # Change to your Repo URL  
+    repoURL: https://github.com/staslebedenko/infrastructure-repo.git  # Change to your Repo URL  
     targetRevision: HEAD  
     path: step-3\apps\common\base                # path to app manifest  
   destination:  
@@ -17,5 +17,5 @@ spec:
     namespace: default               # For namespaces use "default"
   syncPolicy:  
     automated:  
-      prune: false                   # Be careful with pruning namespaces!  
+      prune: false                   # 
       selfHeal: true  
